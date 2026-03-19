@@ -13,7 +13,7 @@ zmq::context_t ctx;
 std::map<std::string,zmq::socket_t> name_to_socket;
 std::mutex name_to_socket_lock;
 
-void send_func(std::string whereis_endpoint)
+void send_func(std::string whereis_endpoint, std::string my_name) //my_name sørger for klienten kan vedhæfte sit navn til beskeden
 {   
 
     zmq::socket_t sock(ctx,zmq::socket_type::req);
@@ -64,7 +64,10 @@ void send_func(std::string whereis_endpoint)
         {
             maybe_socket = name_to_socket.find(recipient);
             std::cout << "sending message: '" << text << "' to: '" << recipient << "'" << std::endl; 
-            maybe_socket->second.send(zmq::buffer(text));
+
+            //Der bliver sendt: afsender, besked
+            std::string formatted_msg = my_name + "," + text;
+            maybe_socket->second.send(zmq::buffer(formatted_msg));
         }
     }
     
@@ -80,7 +83,14 @@ void recv_func(std::string endpoint)
     while(true)
     {
         auto _ = sock.recv(msg);
-        std::cout << "recieved message: '" << msg.to_string() << "'" << std::endl;
+        std::string received_str = msg.to_string();
+
+        //Her splittes beskeden op i afsender og tekst:
+        auto split = received_str.find(",");
+        std::string sender = received_str.substr(0, split);
+        std::string text = received_str.substr(split + 1);
+
+        std::cout << "recieved message from '" << sender << "' : " << text << "'" << std::endl;
     }
 }
 
@@ -112,7 +122,7 @@ int main(int argc, char **argv)
     std::cout << "client successfully registered" << std::endl;
     std::cout << "to send a message type a message of the form: 'recipient,message' and then press enter" << std::endl;
 
-    std::thread send_thread(send_func,server_whereis_client_endpoint);
+    std::thread send_thread(send_func,server_whereis_client_endpoint, name);
     std::thread recv_thread(recv_func,recv_endpoint);
 
     send_thread.join();
